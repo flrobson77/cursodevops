@@ -1,0 +1,78 @@
+---
+- hosts: datacenter
+  become: yes
+  tasks:
+  - name: atualizar o repositorio
+    apt: 
+      default_release: stretch
+      update_cache: yes
+
+  - name: Instalação de pacotes BD
+    apt:
+      pkg:
+        - mariadb-server
+        - wget
+        - zip
+        - curl
+        - vim
+        - python
+        - python-mysqldb
+      state: present
+
+  - name: Limpeza de pacotes desnecessários
+    become: yes
+    apt:
+      autoclean: yes
+
+  - name: Download e extracao DB
+    unarchive:
+      src: https://github.com/rogerramossilva/devops/raw/master/db.zip
+      dest: /tmp
+      validate_certs: no
+      remote_src: yes
+   
+  - name: Criando DB backup
+    mysql_db:
+      name: backup
+      login_user: root
+      login_password: ''
+      state: present
+   
+  - name: Importação base de Dados mysql
+    mysql_db:
+      login_user: root
+      login_password: ''
+      state: import
+      name: backup
+      target: /tmp/backup.sql
+   
+  - name: Criando Usuario Express no MySQL
+    mysql_user:
+      host: '%'
+      login_user: root
+      login_password: ''
+      name: express
+      password: 'AllSafe0!'
+      priv: 'backup.*:ALL'
+      state: present
+    notify: Restart MySQL
+
+  - name: Substituir bind no mysql
+    replace:
+       path: /etc/mysql/mariadb.conf.d/50-server.cnf
+       regexp: '127\.0\.0\.1'
+       replace: '0.0.0.0'
+    notify: Restart MySQL
+
+  handlers:
+  - name: Start MySQL
+    service:
+       name: mysql
+       enabled: yes
+       state: started
+  
+  - name: Restart MySQL
+    service:
+       name: mysql
+       state: restarted
+       enabled: yes

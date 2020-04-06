@@ -1,0 +1,144 @@
+---
+- hosts: intranet
+  become: true
+  vars_files:
+    - vars/default.yml
+  tasks:
+  - name: atualizar o repositorio
+    apt: 
+      default_release: stretch
+      update_cache: yes
+
+  - name: Instalação dos pacotes do WEBSERVER
+    become: yes
+    apt:
+      pkg:
+        - php7.0
+        - php-pear
+        - php7.0-curl
+        - php7.0-gd
+        - php7.0-xmlrpc
+        - php7.0-intl
+        - php7.0-mysql
+        - apache2
+        - python-mysqldb
+        - python-apt
+        - python3-apt
+        - wget
+        - zip
+        - curl
+      state: present
+
+  - name: Limpeza de pacotes desnecessários
+    become: yes
+    apt:
+      autoclean: yes
+
+  - name: Diretorio do webserver
+    become: yes
+    file:
+      path: /srv/www
+      state: directory
+      owner: "{{ app_user }}"
+      mode: '3775'
+
+  - name: Download e extracao do arquivo da aplicacao
+    unarchive:
+      src: https://github.com/rogerramossilva/devops/raw/master/express.zip
+      dest: /srv/www
+      validate_certs: no
+      remote_src: yes
+
+  - name: Substitui IP de Conexao co o Banco
+    replace:
+      path: /srv/www/express/backup.php
+      regexp: '192\.168\.1\.20'
+      replace: '172.17.177.42'
+
+  - name: Criando VIRTUALHOST para pagina express.asf.com
+    template:
+      src: "files/express.conf"
+      dest: "/etc/apache2/sites-available/{{ http_conf }}"
+
+  - name: Controle de Diretorio VIRTUALHOST
+    template:
+      src: "files/direxpress.conf"
+      dest: "/etc/apache2/conf-available/direxpress.conf"
+
+  - name: Atualizando para hardening no servico do APACHE2
+    template:
+      src: "files/security.conf"
+      dest: "/etc/apache2/conf-available/security.conf"
+
+  - name: "Entrada DNS arquivo.conf"
+    template:
+      src: "files/hostsintranet.conf"
+      dest: "/etc/hosts"
+
+  - name: Habilitar o site
+    shell: /usr/sbin/a2ensite {{ http_conf }}
+    notify: Reload Apache2
+
+  - name: Habilita o arquivo de configuracao express
+    shell: /usr/sbin/a2enconf direxpress.conf
+    notify: Reload Apache2
+
+  - name: Habilita o hardening no servico APACHE2
+    shell: /usr/sbin/a2enconf security.conf
+    notify: Reload Apache2
+
+  - name: Habilitar modulo PHP7
+    apache2_module:
+      name: php7.0
+      state: present
+    notify: Reload Apache2
+
+  - name: Habilitar modulo Virtual_Host
+    apache2_module:
+      name: vhost_alias
+      state: present
+    notify: Reload Apache2
+
+  - name: Habilitar modulo HEADERS
+    apache2_module:
+      name: headers
+      state: present
+    notify: Reload Apache2
+
+  - name: Habilitar modulo REWRITE
+    apache2_module:
+      name: rewrite
+      state: present
+    notify: Reload Apache2
+
+  - name: Desabilitar modulo DEFLATE
+    apache2_module:
+      name: deflate
+      state: absent
+      force: true
+    notify: Reload Apache2
+
+  - name: Permissao Recursiva do Diretorio da Pagina
+    file:
+      path: /srv/www/express
+      state: directory
+      recurse: yes
+      owner: www-data
+      group: www-data
+
+  handlers:
+    - name: 'Reload Apache2'
+      service:
+        name: apache2
+        state: reloaded
+
+    - name: 'Restart Apache2'
+      service:
+        name: apache2
+        state: restarted
+
+    - name: 'Started Apache2'
+      service:
+        name: apache2
+        state: started
+        enabled: yes

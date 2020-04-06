@@ -1,0 +1,12 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+  - name: Criacao de GRUPO g_ti
+    group:
+      name: "{{ item }}"
+      state: present
+      with_items:
+        - g_ti
+        - g_diretoria
+        - g_suporte
