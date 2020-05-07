@@ -1,0 +1,38 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Maquinas com imagem centos
+vmscts = {
+  'master' => {'memory' => '2048', 'cpu' => 2, 'ip' => '150'},
+  'node1' => {'memory' => '512', 'cpu' => 1, 'ip' => '151'},
+  'node2' => {'memory' => '512', 'cpu' => 1, 'ip' => '152'},
+}
+
+Vagrant.configure("2") do |config|
+
+  config.vm.define "controle" do |ans|
+    ans.vm.box = "ansible/tower"
+    ans.vm.box_check_update = false
+    ans.vm.hostname = "controle"
+    ans.vm.network "public_network", ip: "10.0.1.156"
+    ans.vm.provider "virtualbox" do |vb|
+      vb.name = "ansible"
+      vb.memory = "1024"
+    end
+  end
+
+  vmscts.each do |name, conf|
+    config.vm.define "#{name}" do |k|
+      k.vm.box = "geerlingguy/centos7"
+      k.vm.box_check_update = false
+      k.vm.network "public_network", ip: "10.0.1.#{conf['ip']}"
+      k.vm.hostname = "#{name}"
+      k.vm.provider "virtualbox" do |v|
+        v.name = "#{name}"
+        v.cpus = "#{conf['cpu']}"
+        v.memory = "#{conf['memory']}"
+      end
+    end
+  end
+  config.vm.provision "shell", path: "update.sh"
+end
